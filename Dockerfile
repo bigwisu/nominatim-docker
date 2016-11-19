@@ -1,16 +1,13 @@
 FROM ubuntu:14.04
-MAINTAINER Jan Nonnen <helvalius@gmail.com>
-# Define the OSM argument, use monaco as default
-ARG OSM=http://download.geofabrik.de/europe/monaco-latest.osm.pbf
+MAINTAINER Wisu Suntoyo <bigwisu@gmail.com>
 
 RUN apt-get update
 
 # Install basic software
 RUN apt-get -y install wget
 
-
 # Note: libgeos++-dev is included here too (the nominatim install page suggests installing it if there is a problem with the 'pear install DB' below - it seems safe to install it anyway)
-RUN apt-get -y install build-essential gcc git osmosis  libxml2-dev libgeos-dev libpq-dev libbz2-dev libtool cmake libproj-dev proj-bin libgeos-c1 libgeos++-dev libexpat1-dev
+RUN apt-get -y install build-essential gcc git osmosis osmctools libxml2-dev libgeos-dev libpq-dev libbz2-dev libtool cmake libproj-dev proj-bin libgeos-c1 libgeos++-dev libexpat1-dev
 
 # Install Boost (required by osm2pqsql)
 RUN apt-get -y install autoconf make g++ libboost-dev libboost-system-dev libboost-filesystem-dev libboost-thread-dev lua5.2 liblua5.2-dev
@@ -39,8 +36,6 @@ RUN apt-get -y install libprotobuf-c0-dev protobuf-c-compiler
 
 RUN apt-get  -y install sudo
 
-#
-
 RUN pear install DB
 RUN useradd -m -p password1234 nominatim
 RUN mkdir -p /app/git/
@@ -63,27 +58,20 @@ RUN service postgresql start && \
   sudo -u postgres psql postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='www-data'" | grep -q 1 || sudo -u postgres createuser -SDR www-data && \
   sudo -u postgres psql postgres -c "DROP DATABASE IF EXISTS nominatim"
 
-RUN wget --output-document=/app/data.pbf $OSM
-# RUN wget --output-document=/app/data.pbf http://download.geofabrik.de/europe/luxembourg-latest.osm.pbf
-# RUN wget --output-document=/app/data.pbf http://download.geofabrik.de/north-america-latest.osm.pbf
-# RUN wget --output-document=/app/data.pbf http://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf
+WORKDIR /app
+RUN osmget.sh
 
 WORKDIR /app/nominatim
 
 ADD local.php /app/nominatim/settings/local.php
 
-
 RUN ./utils/setup.php --help
-
 
 RUN service postgresql start && \
   sudo -u nominatim ./utils/setup.php --osm-file /app/data.pbf --all --threads 2
 
-
 RUN mkdir -p /var/www/nominatim
 RUN ./utils/setup.php --create-website /var/www/nominatim
-
-
 
 # Adjust PostgreSQL configuration so that remote connections to the
 # database are possible.
